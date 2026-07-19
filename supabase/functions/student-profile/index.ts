@@ -1,0 +1,9 @@
+import{createClient}from"npm:@supabase/supabase-js@2";
+const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"content-type","Access-Control-Allow-Methods":"POST,OPTIONS"};
+const json=(x,s=200)=>new Response(JSON.stringify(x),{status:s,headers:{...cors,"content-type":"application/json;charset=utf-8"}});
+const hash=async s=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)))).map(x=>x.toString(16).padStart(2,"0")).join("");
+const token=()=>Array.from(crypto.getRandomValues(new Uint8Array(32))).map(x=>x.toString(16).padStart(2,"0")).join("");
+const pin=()=>String(crypto.getRandomValues(new Uint32Array(1))[0]%1000000).padStart(6,"0");
+const db=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+Deno.serve(async req=>{if(req.method==="OPTIONS")return new Response("ok",{headers:cors});try{const b=await req.json(),th=await hash(String(b.token||"")),ph=await hash(String(b.pin||""));const{data:p,error}=await db.from("profiles").select("*").eq("edit_token_hash",th).eq("pin_hash",ph).maybeSingle();if(error)throw error;if(!p)return json({error:"链接或编辑码错误"},403);if(b.action==="read"){delete p.edit_token_hash;delete p.pin_hash;return json({profile:p})}if(b.action==="update"){const x=b.profile||{};if(!x.public_name||!x.school||!x.city||!Number.isFinite(x.lng)||!Number.isFinite(x.lat))return json({error:"请完整填写资料"},400);const safe={public_name:String(x.public_name).slice(0,30),school:String(x.school).slice(0,80),province:String(x.province).slice(0,30),province_adcode:String(x.province_adcode).slice(0,12),city:String(x.city).slice(0,30),city_adcode:String(x.city_adcode).slice(0,12),lng:x.lng,lat:x.lat,message:String(x.message||"").slice(0,100),is_visible:!!x.is_visible};const{error:u}=await db.from("profiles").update(safe).eq("id",p.id);if(u)throw u;return json({ok:true})}return json({error:"未知操作"},400)}catch(e){return json({error:e.message},500)}});

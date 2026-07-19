@@ -1,0 +1,6 @@
+[functions.public-profiles]
+verify_jwt = false
+[functions.student-profile]
+verify_jwt = false
+[functions.admin-profiles]
+verify_jwt = false
